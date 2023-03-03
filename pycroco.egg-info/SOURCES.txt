@@ -1,0 +1,15 @@
+setup.py
+bin/run_pycroco_test.py
+pycroco/__init__.py
+pycroco/crosscorrel.py
+pycroco/filters.py
+pycroco/peak_functions.py
+pycroco.egg-info/PKG-INFO
+pycroco.egg-info/SOURCES.txt
+pycroco.egg-info/dependency_links.txt
+pycroco.egg-info/requires.txt
+pycroco.egg-info/top_level.txt
+pycroco/data/__init__.py
+pycroco/data/testing/__init__.py
+pycroco/data/testing/muse.fits
+pycroco/data/testing/phoenix.fits
