@@ -30,7 +30,7 @@ def ramp(data, cuton, fullon, fulloff=-1, cutoff=-1):
     filtered_data : nd_array
         The filtered data array. Has the same length as the input data.
     """
-    fft_data = np.fft.rfft(data)
+    fft_data = np.fft.rfft(np.nan_to_num(data))
 
     if fulloff == -1:
         fulloff = data.shape[-1] // 3
