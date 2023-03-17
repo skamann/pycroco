@@ -10,7 +10,7 @@ class Gauss(object):
 
     @staticmethod
     def initials(peak, x, x2):
-        return peak, x, np.sqrt(max(x2, 2.))
+        return peak, x, np.max([x2, 2.])
 
     @staticmethod
     def profile(x, peak, x0, var, continuum=0):

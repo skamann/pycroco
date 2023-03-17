@@ -351,22 +351,25 @@ class CrossCorrel(object):
         total = float(y_cc[center_pixels].sum())
         x = np.sum(x_cc[center_pixels] * y_cc[center_pixels]) / total
         x2 = np.sum(y_cc[center_pixels] * (x_cc[center_pixels] - x) ** 2) / total
+        if x2 < (0.2*np.diff(x_cc[center_pixels]).min())**2:
+            x2 = (0.2*np.diff(x_cc[center_pixels]).min())**2
 
         if function == CrossCorrel.FitFunction.Gauss:
             fct = Gauss
         elif function == CrossCorrel.FitFunction.Moffat:
             fct = Moffat
         else:
-            raise IOError('Unknown fitting function: {0}'.format(function))
+            raise IOError(f'Unknown fitting function: {function}.')
 
-        guesses = fct.initials(y_cc[center_pixels].max(), x, x2)
+#         guesses = fct.initials(y_cc[center_pixels].max(), x, x2)
+        guesses = fct.initials(y_cc[center_pixels].max(), x_cc[center_pixels][y_cc[center_pixels].argmax()], x2)
 
         with warnings.catch_warnings():
             warnings.simplefilter('error', OptimizeWarning)
             try:
                 popt, pcov = curve_fit(fct.profile, x_cc[center_pixels], y_cc[center_pixels], p0=guesses)
             except (RuntimeError, ValueError, OptimizeWarning):
-                self.logger.error("Peak fit failed on data: {}".format(y_cc[center_pixels]))
+                self.logger.error(f"Peak fit failed on data: {y_cc[center_pixels]} with initial guesses {guesses}")
                 popt = [np.nan] * len(guesses)
                 pcov = None
                 success = False
@@ -391,7 +394,7 @@ class CrossCorrel(object):
         y_cc = signal.values
 
         # i_c - index of pixel closest to peak
-        # window_size - half length of log-template or -spectrum, depending on which one is shorter
+        # window_size - half-length of log-template or -spectrum, depending on which one is shorter
         i_c = abs(x_cc - x_peak).argmin()
         if window_size is None:
             window_size = min(i_c, y_cc.size - i_c)
@@ -604,6 +607,8 @@ class CrossCorrel(object):
                             bestfit["x0"], self.results.loc[(template_id, spectrum_id), "vrad_err"]))
 
                     else:
+                        self.results.loc[(template_id, spectrum_id), 'r_cc'] = np.nan
+                        self.results.loc[(template_id, spectrum_id), 'vrad_err'] = np.nan
                         self.logger.error("... correlation failed: No valid {} fit.".format(fit_function))
 
         if full_output:
