@@ -208,7 +208,10 @@ class IterativeCC(object):
             else:
                 spectrum.valid[imin:imax] = True
 
-    def __call__(self, max_iterations=10, dv_threshold=0.1, combine_threshold=0.2, plotfilename=None, **kwargs):
+    def __call__(self, max_iterations=10, dv_threshold=0.1, combine_threshold=0.2, plotfilename=None,
+                 weighting='linear', **kwargs):
+
+        assert weighting in ["linear", "squared"]
 
         self.cc.add(self.template, template=True, id=self.template_id)
         _r = self.cc(**kwargs)[0]
@@ -234,6 +237,9 @@ class IterativeCC(object):
                     spectrum.redshift(vrad=-row['vrad'])
                 spectra_to_combine.append(np.asarray(spectrum))
                 weights.append(self.spectra.at[index, self.sort_by])
+
+            if weighting == 'squared':
+                weights = np.asarray(weights)**2
 
             self.template.flux = np.average(spectra_to_combine, weights=weights, axis=0)
             self.template.valid = np.isnan(self.template)
