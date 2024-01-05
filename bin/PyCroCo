@@ -175,6 +175,9 @@ def run(spectra, csv, grid, mask_tellurics=False, mask_ao=False, masking=None, f
         except IndexError:
             continue
 
+        # add filename
+        best['Filename'] = filename
+
         # write to fits file, if successful
         if best['success']:
             results = fs.results('STAR')
