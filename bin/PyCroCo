@@ -1,0 +1,242 @@
+#! /usr/bin/env python
+import argparse
+import logging
+import os
+import numpy as np
+import pandas as pd
+from collections import namedtuple
+from astropy.io import fits
+
+from pycroco.crosscorrel import CrossCorrel
+from spexxy.data import Spectrum, FitsSpectrum, SpectrumFitsHDU
+from spexxy.utils.interpolator import create_interpolator
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("spectra", type=str, nargs='+', help="""The input spectra to be processed.""")
+parser.add_argument("parameters", type=str,
+                    help="""A csv-file containing the stellar parameters used to find matching templates.""")
+parser.add_argument("grid", type=os.path.expandvars, help="""The grid of template spectra.""")
+parser.add_argument('--filter-type', type=int, default=None,
+                    help="""Type of filter that is applied to each spectrum.""")
+parser.add_argument('--filter-pars', type=float, nargs='+', default=None,
+                    help="""Parameters for filtering.""")
+parser.add_argument('--mask-tellurics', action='store_true',
+                    default=False, help="""Mask regions strongly affected by telluric absorption?""")
+parser.add_argument('--mask-ao', action='store_true', default=False,
+                    help="""Mask Na gap for AO observations""")
+parser.add_argument('--masking', type=str, default=None,
+                    help='Folder containing file-by-file bad-pixel masks.')
+parser.add_argument('--full-output', action='store_true', default=False,
+                    help="""Save cross-correlation signals to individual FITS-files?""")
+
+
+WAVE_RANGES_TELLURICS = [(5572., 5582.), (6295., 6305.), (6850., 6950.), (7150., 7400.), (7580., 7680.), (8100., 8400.),
+                         (8900., 9400.)]
+WAVE_RANGE_AO = (5790., 5980.)
+WAVE_RANGE_NAD = (5880., 5905.)
+
+
+# initialize logging
+log = logging.getLogger()
+log.setLevel(logging.INFO)
+fr = logging.Formatter("%(asctime)s[%(levelname)-8s]: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+# add file handler for logging
+ch = logging.FileHandler("crosscorrel.log")
+ch.setLevel(logging.INFO)
+ch.setFormatter(fr)
+log.addHandler(ch)
+
+sh = logging.StreamHandler()
+sh.setLevel(logging.INFO)
+sh.setFormatter(fr)
+log.addHandler(sh)
+
+
+def run(spectra, csv, grid, mask_tellurics=False, mask_ao=False, masking=None, filtertype=None, filterpars=None,
+        full_output=False, outfilename='results.csv'):
+
+    # set up interpolator for template spectra
+    ip = create_interpolator('files:{}'.format(grid))
+
+    grid_axes = []
+    grid_defaults = []
+    for ax in ip.axes():
+        grid_axes.append(ax.name)
+        grid_defaults.append(ax.initial)
+
+    # If parameters or stars are missing in csv-files, use default values for interpolation
+    Parameters = namedtuple("GridParameters", grid_axes, defaults=grid_defaults)
+
+    # open csv-file with stellar parameters, check validity
+    parameters = pd.read_csv(csv, index_col='Filename')
+
+    for n, axis in enumerate(grid_axes):
+        if axis not in parameters.columns:
+            log.error('Missing grid parameter {0} in csv-file. Using default {0}={1:.3g}'.format(
+                axis, grid_defaults[n]))
+
+    # mask out wavelength ranges affected by telluric/laser lines
+    masked_regions = []
+
+    if mask_tellurics:
+        log.info('Masking tellurics...')
+        masked_regions.extend(WAVE_RANGES_TELLURICS)
+
+    if mask_ao:
+        log.info('Masking AO filter region...')
+        masked_regions.append(WAVE_RANGE_AO)
+    else:
+        log.info('Masking NaD lines...')
+        masked_regions.append(WAVE_RANGE_NAD)
+
+    for region in masked_regions:
+        log.info('The following wavelength range will be masked: {0}-{1}AA '.format(region[0], region[1]))
+
+    # prepare output csv-file
+    final = []
+
+    # prepare correlation routine
+    cc = CrossCorrel()  # plot=False, saveplots=True, plotfolder='./')
+
+    n_spectra = len(spectra)
+
+    for i, filename in enumerate(spectra, start=1):
+
+        log.info('Processing {0} ({1}/{2}) ...'.format(filename, i, n_spectra))
+
+        fs = FitsSpectrum(filename, 'rw')
+
+        # check if star has stellar parameters in csv-file available
+        if filename not in parameters.index:
+            log.error('Missing stellar parameters for spectrum {0}'.format(filename))
+            p = Parameters()
+        else:
+            current_parameters = {}
+            for ax in grid_axes:
+                if ax in parameters.columns:
+                    current_parameters[ax] = parameters.at[filename, ax]
+            p = Parameters(**current_parameters)
+
+        # define mask
+        log.info('Creating mask...')
+
+        if masking is not None:
+            # load mask from given path
+            mask_filename = os.path.join(masking, filename)
+            if os.path.exists(mask_filename):
+                log.info('Found mask: {0}'.format(mask_filename))
+                mask = ~fits.getdata(mask_filename, 'GOODPIXELS').astype(bool)
+            else:
+                log.warning('Could not find spectrum in MASKING analysis.')
+
+        # if no mask was provided/used, extract information from FitsSpectrum instance
+        mask = ~fs.good_pixels
+
+        # add NaN pixels
+        mask |= np.isnan(fs.spectrum.flux)
+
+        # add pre-defined regions to mask
+        for wmin, wmax in masked_regions:
+            mask[(fs.spectrum.wave > wmin) & (fs.spectrum.wave < wmax)] = True
+        fs.spectrum.valid = mask
+
+        cc.add(spectrum=fs.spectrum, id=1)
+
+        # find best-matching template spectrum
+        try:
+            tpl = ip(tuple(p))
+        except KeyError:
+            log.error('No suitable template found: {0}'.format(p))
+            continue
+
+        cc.add(spectrum=tpl, template=True, id=1)
+
+        # if template_finder.library.teff[template_index] < 7000:
+        #     fitwidth = 80
+        # else:
+        #     fitwidth = 200
+
+        # run cross-correlation
+        log.info('Running cross correlation...')
+        try:
+            r, cc_signals, _ = cc(filtertype=filtertype, filterpars=filterpars, full_output=full_output)
+            best = r.iloc[-1].to_dict()
+        except IndexError:
+            continue
+
+        # write to fits file, if successful
+        if best['success']:
+            results = fs.results('STAR')
+            results['V'] = [best['vrad'], best['vrad_err']]
+            results = fs.results('CROSSCORREL')
+            results['VRAD'] = [best['vrad'], best['vrad_err']]
+            results['FWHM'] = best['fwhm']
+            results['PEAK'] = best['peak']
+            results['RCC'] = best['r_cc']
+
+            vrad = best['vrad']
+        else:
+            vrad = 0.
+
+        # get continuum subtracted spectrum and save it
+        z = (1. - vrad / 3e5)
+        norm = Spectrum(flux=cc.spectra[1].flux + 1., wave=cc.spectra[1].wave * z, wave_mode=cc.spectra[1].wave_mode)
+        norm.mode(fs.spectrum.wave_mode)
+        norm = norm.resample(spec=fs.spectrum)
+        fs['NORMALIZED'] = SpectrumFitsHDU(spec=norm, primary=False)
+
+        # add goodpixels mask
+        fs.good_pixels = ~mask
+
+        # add templates
+        if (1, 1) in cc_signals.keys():
+            # get cc function
+            cc_function = cc_signals[(1, 1)]
+
+            # filter to +-1000km/s around peak
+            w = (cc_function.index >= vrad - 5000) & (cc_function.index <= vrad + 5000)
+            cc_x = cc_function.index[w]
+            cc_y = cc_function.values[w]
+
+            # append to fits
+            ccvelocity = fits.ImageHDU(cc_x)
+            ccvelocity.header['EXTNAME'] = 'CCVELOCITY'
+            fs.append(ccvelocity)
+            ccsignal = fits.ImageHDU(cc_y)
+            ccsignal.header['EXTNAME'] = 'CCSIGNAL'
+            fs.append(ccsignal)
+
+            # continuum subtracted template
+            bestfit = SpectrumFitsHDU(flux=cc.templates[1].flux + 1., wave=cc.templates[1].wave,
+                                      wave_mode=cc.templates[1].wave_mode)
+            bestfit.mode(fs.spectrum.wave_mode)
+            bestfit = bestfit.resample(spec=fs.spectrum)
+            fs['BESTFIT'] = SpectrumFitsHDU(spec=bestfit, primary=False)
+
+        fs.save()
+        fs.close()
+
+        # success
+        log.info('Finished cross correlation.')
+
+        final.append(best)
+
+        cc.clean_spectra()
+        cc.clean_templates()
+        # cc.clean_results()
+
+    final = pd.DataFrame(final)
+    final.to_csv(outfilename, index=False)
+
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+
+    if args.filter_type is not None:
+        args.filter_type = CrossCorrel.Filter(args.filter_type)
+
+    run(spectra=args.spectra, csv=args.parameters, grid=args.grid, mask_tellurics=args.mask_tellurics,
+        mask_ao=args.mask_ao, masking=args.masking, filtertype=args.filter_type, filterpars=args.filter_pars,
+        full_output=args.full_output)

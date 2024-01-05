@@ -3,9 +3,9 @@ import numpy as np
 from importlib.resources import files
 from spexxy.data import SpectrumFits
 
-from pycroco.crosscorrel import CrossCorrel
-from pycroco.peak_functions import Moffat
-from pycroco.data import testing
+from PyCroCo.crosscorrel import CrossCorrel
+from PyCroCo.peak_functions import Moffat
+from PyCroCo.data import testing
 
 cc = CrossCorrel()
 

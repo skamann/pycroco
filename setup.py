@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='pycroco',
-    version='0.1',
+    version='0.2',
     packages=find_packages('./'),
-    scripts=['bin/run_pycroco_test.py'],
+    scripts=['bin/run_pycroco_test.py', 'bin/PyCroCo'],
     package_data={"": ["*.fits"]},
     url='',
     license='gpl-3.0',
