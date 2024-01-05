@@ -10,6 +10,6 @@ setup(
     license='gpl-3.0',
     author='Sebastian Kamann',
     author_email='s.kamann@ljmu.ac.uk',
-    install_requires=['matplotlib', 'numpy', 'pandas', 'scipy', 'spexxy'],
+    install_requires=['matplotlib', 'numpy', 'pandas', 'scipy', 'spexxy', 'astropy'],
     description='Python tool for cross-correlating spectra'
 )

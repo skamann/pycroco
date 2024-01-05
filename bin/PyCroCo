@@ -6,10 +6,11 @@ import numpy as np
 import pandas as pd
 from collections import namedtuple
 from astropy.io import fits
-
-from pycroco.crosscorrel import CrossCorrel
 from spexxy.data import Spectrum, FitsSpectrum, SpectrumFitsHDU
 from spexxy.utils.interpolator import create_interpolator
+
+from pycroco.crosscorrel import CrossCorrel
+from pycroco.utils import replace_wave_nans
 
 
 parser = argparse.ArgumentParser()
@@ -137,12 +138,20 @@ def run(spectra, csv, grid, mask_tellurics=False, mask_ao=False, masking=None, f
         # add NaN pixels
         mask |= np.isnan(fs.spectrum.flux)
 
+        # check if any NaN wavelengths need to be interpolated
+        if np.isnan(fs.spectrum.wave).any():
+            log.warning('NaNs in wavelength array found. Interpolating ...')
+            # fs.spectrum.wave = replace_wave_nans(fs.spectrum.wave)
+            spectrum = Spectrum(spec=fs.spectrum, wave=replace_wave_nans(fs.spectrum.wave))
+        else:
+            spectrum = fs.spectrum
+
         # add pre-defined regions to mask
         for wmin, wmax in masked_regions:
             mask[(fs.spectrum.wave > wmin) & (fs.spectrum.wave < wmax)] = True
-        fs.spectrum.valid = mask
+        spectrum.valid = mask
 
-        cc.add(spectrum=fs.spectrum, id=1)
+        cc.add(spectrum=spectrum, id=1)
 
         # find best-matching template spectrum
         try:
@@ -183,8 +192,8 @@ def run(spectra, csv, grid, mask_tellurics=False, mask_ao=False, masking=None, f
         # get continuum subtracted spectrum and save it
         z = (1. - vrad / 3e5)
         norm = Spectrum(flux=cc.spectra[1].flux + 1., wave=cc.spectra[1].wave * z, wave_mode=cc.spectra[1].wave_mode)
-        norm.mode(fs.spectrum.wave_mode)
-        norm = norm.resample(spec=fs.spectrum)
+        norm.mode(spectrum.wave_mode)
+        norm = norm.resample(spec=spectrum)
         fs['NORMALIZED'] = SpectrumFitsHDU(spec=norm, primary=False)
 
         # add goodpixels mask
@@ -212,7 +221,7 @@ def run(spectra, csv, grid, mask_tellurics=False, mask_ao=False, masking=None, f
             bestfit = SpectrumFitsHDU(flux=cc.templates[1].flux + 1., wave=cc.templates[1].wave,
                                       wave_mode=cc.templates[1].wave_mode)
             bestfit.mode(fs.spectrum.wave_mode)
-            bestfit = bestfit.resample(spec=fs.spectrum)
+            bestfit = bestfit.resample(spec=spectrum)
             fs['BESTFIT'] = SpectrumFitsHDU(spec=bestfit, primary=False)
 
         fs.save()

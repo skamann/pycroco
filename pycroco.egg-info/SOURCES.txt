@@ -1,4 +1,6 @@
+LICENSE.txt
 setup.py
+bin/PyCroCo
 bin/run_pycroco_test.py
 pycroco/__init__.py
 pycroco/crosscorrel.py
@@ -9,7 +11,13 @@ pycroco.egg-info/SOURCES.txt
 pycroco.egg-info/dependency_links.txt
 pycroco.egg-info/requires.txt
 pycroco.egg-info/top_level.txt
+pycroco/analysis/__init__.py
+pycroco/analysis/iterative_cc.py
 pycroco/data/__init__.py
 pycroco/data/testing/__init__.py
 pycroco/data/testing/muse.fits
 pycroco/data/testing/phoenix.fits
+pycroco/spexxy/__init__.py
+pycroco/spexxy/pycrocospectrum.py
+pycroco/utils/__init__.py
+pycroco/utils/statistics.py

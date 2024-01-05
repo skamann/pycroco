@@ -556,10 +556,10 @@ class CrossCorrel(object):
                 # use same sampling as for template in log-space
                 _spectrum.mode(PyCrocoSpectrum.Mode.LOG10LAMBDA)
                 # define number of pixels - note that applying .min()/.max() to pd.Series skips NaNs by default
-                npix = int((_spectrum.wave.max() - _spectrum.wave.min()) / template.wave_step)
+                npix = int((np.nanmax(_spectrum.wave) - np.nanmin(_spectrum.wave)) / template.wave_step)
                 # make sure difference in starting wavelengths is integer of selected sampling, i.e. template
                 # and spectrum are shifted by an integer number of pixels
-                n = int((_spectrum.wave.min() - template.wave_start) / template.wave_step)
+                n = int((np.nanmin(_spectrum.wave) - template.wave_start) / template.wave_step)
                 wave_start = template.wave_start + (n + 1) * template.wave_step
 
                 # perform interpolation
