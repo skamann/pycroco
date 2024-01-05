@@ -78,6 +78,10 @@ class CrossCorrel(object):
             The ID assigned to the spectrum. If None is provided, IDs are
             assigned consecutively starting from 0 for both templates and
             spectra.
+        continuum_mode : ContinuumMode, optional
+            The method used to determine the continuum of the spectrum.
+        continuum_kwargs : dict, optional
+            A set of keywords to pass to the continuum determination.
         """
         # check if input valid
         spectrum = PyCrocoSpectrum(spectrum, copy_flux=True)
@@ -167,7 +171,7 @@ class CrossCorrel(object):
             out_data[start:stop] = 0
 
         # prior to apodization, remove masked ranges with length below threshold
-        above_threshold = np.ones_like(indices, dtype=np.bool)
+        above_threshold = np.ones_like(indices, dtype=bool)
         for i in range(1, indices.size - 1, 2):
             if (indices[i + 1] - indices[i]) < threshold:
                 above_threshold[i] = above_threshold[i + 1] = False
@@ -285,15 +289,21 @@ class CrossCorrel(object):
         # a = (a - np.mean(a)) / (np.std(a) * len(a))
         # v = (v - np.mean(v)) /  np.std(v)
         # (spectra are already continuum subtracted, so omit subtraction of mean)
-        a = spectrum / (np.std(spectrum) * len(spectrum))
-        v = template / np.std(template)
+        a = template / (np.std(template) * len(template))
+        v = spectrum / np.std(spectrum)
 
-        # perform correlation, resulting array has length len(a)+len(v)-1
-        corr12 = np.correlate(a, v, "same")
+        # pad template with zeros on each side, using half-length of spectrum. This is to ensure that the zero-shift
+        # of the cross-correlation always corresponds to the same pixel in the output array
+        pad = len(v)//2
+        _a = np.pad(a, (pad, pad))
+
+        # perform correlation, resulting array has length max(len(a), len(v)) # len(a)+len(v)-1
+        corr12 = np.correlate(_a, v, "valid")
 
         # get abscissa for correlation function (incl. right zero point)
-        xdata = np.arange(corr12.size, dtype=np.float64)
-        xdata -= v.size // 2  # when self-correlating an array, the peak is at the central array pixel
+        xdata = np.arange(corr12.size, dtype=np.float64) - pad
+        xdata *= -1
+        # xdata -= max(a.size, v.size) // 2  # when self-correlating an array, the peak is at the central array pixel
         xdata *= stepsize  # change to log-wavelength space
 
         # account for different starting wavelengths of template and spectrum
@@ -380,7 +390,7 @@ class CrossCorrel(object):
         result = OrderedDict(zip(parameters[1:1 + len(popt)], popt))
 
         # only accept velocities if the peak of the Gaussian fit is inside the fit window
-        if 'x0' in result.keys() and not x_cc[center_pixels][0] < result['x0'] < x_cc[center_pixels][-1]:
+        if 'x0' in result.keys() and not x_cc[center_pixels].min() < result['x0'] < x_cc[center_pixels].max():
             success = False
 
         result['fwhm'] = fct.fwhm(**result)
@@ -435,7 +445,7 @@ class CrossCorrel(object):
             `rampoff`. Also, `apodize` can be used to control the fraction at
             the edge of each valid range that is apodized with a cosine filter
             prior to Fourier filtering.
-            See http://arxiv.org/pdf/0912.4755.pdf for meaning of parameters.
+            See https://arxiv.org/pdf/0912.4755.pdf for meaning of parameters.
         search_width : float, optional
             The half width of the window in which the peak of the cross-
             correlation function is searched, given in km/s.
@@ -472,11 +482,15 @@ class CrossCorrel(object):
             * r_cc - The r_cc statistics as defined by Tonry & Davis (1979)
             * success - Boolean flag indicating if the cross-correlation peak
                         has been detected.
-        cc_results : dictionary
+        cc_functions : dictionary
             Only if the parameter full_output is set to True, a dictionary
             containing a pandas Series per template_spectrum pair with the
             cross-correlation signal (and the velocity of each pixel as Index)
             is returned.
+        cc_inputs : dictionary
+            Only if the parameter full_output is set to True, a dictionary
+            containing a tuple per template_spectrum pair with the spectra
+            as they entered the correlation is returned.
         """
         if kwargs:
             raise IOError('Unknown parameters provided to call function: {}'.format(kwargs))
@@ -564,8 +578,8 @@ class CrossCorrel(object):
 
                 # if spectrum_id == 1.:
                 # import matplotlib.pyplot as plt
-                # plt.plot(final_template_flux, 'g-')
-                # plt.plot(final_spectrum_flux, 'r-')
+                # plt.plot(template.wave, final_template_flux, 'g-')
+                # plt.plot(spectrum.wave, final_spectrum_flux, 'r-')
                 # plt.show()
 
                 # perform cross correlation
