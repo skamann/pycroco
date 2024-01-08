@@ -563,9 +563,16 @@ class CrossCorrel(object):
                 wave_start = template.wave_start + (n + 1) * template.wave_step
 
                 # perform interpolation
-                spectrum = _spectrum.resample(wave_start=wave_start, wave_step=template.wave_step, wave_count=npix,
-                                              fill_value=0.)
-                spectrum.valid = CrossCorrel._resample_valid(_spectrum.valid, _spectrum.wave, spectrum.wave)
+                try:
+                    spectrum = _spectrum.resample(wave_start=wave_start, wave_step=template.wave_step, wave_count=npix,
+                                                  fill_value=0.)
+                except TypeError:
+                    # if interpolation fails, it usually returns a TypeError, caused by Spectrum.indices_of_wave_range()
+                    # returning None. In that case,an empty spectrum is used.
+                    logging.error('Cannot resample spectrum. Check input data.')
+                    spectrum = PyCrocoSpectrum(wave_start=wave_start, wave_step=template.wave_step, wave_count=npix)
+                else:
+                    spectrum.valid = CrossCorrel._resample_valid(_spectrum.valid, _spectrum.wave, spectrum.wave)
 
                 # apply FFT filter if requested
                 if filterfunc is not None:
