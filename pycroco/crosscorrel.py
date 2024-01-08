@@ -103,7 +103,7 @@ class CrossCorrel(object):
             # remove masked leading or trailing pixels (if any)
             if spectrum.valid[0] or spectrum.valid[-1]:
                 i_min, i_max = np.flatnonzero(~spectrum.valid)[[0, -1]]
-                spectrum = spectrum.extract_index(i_min, i_max)
+                spectrum = spectrum.extract_index(i_min, i_max + 1)
 
         # fit continuum
         if continuum_kwargs is None:
