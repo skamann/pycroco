@@ -2,12 +2,17 @@ import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib import gridspec
-from spexxy.data import FitsSpectrum, SpectrumFitsHDU
+from spexxy.data import FitsSpectrum, SpectrumFitsHDU, Spectrum
 
 from ..crosscorrel import CrossCorrel
 from ..spexxy import PyCrocoSpectrum
 from ..utils.statistics import der_snr
+from ..utils import replace_wave_nans
+
+
+log = logging.getLogger()
 
 
 class ProgressPlot(object):
@@ -108,9 +113,18 @@ class ProgressPlot(object):
 
 class IterativeCC(object):
 
-    def __init__(self, spectra, sort_by='SNRATIO', plot=False, fig=None, wave_range=None, mask_ranges=None,
-                 tellurics_spectra=None, match_tellurics_by='MJD-OBS'):
-
+    def __init__(self, spectra: pd.DataFrame, sort_by: str = 'SNRATIO', plot: bool = False, fig: plt.Figure = None,
+                 wave_range: tuple = None, mask_ranges: list = None, tellurics_spectra: dict = None,
+                 match_tellurics_by: str = 'MJD-OBS'):
+        """
+        :param spectra: Pandas DataFrame containing information about the spectra.
+        :param sort_by: Quality indicator in the DataFrame used to sort the spectra.
+        :param plot: Boolean to indicate if the progress of the analysis is plotted.
+        :param wave_range: Wavelength range that is analysed.
+        :param mask_ranges: Wavelength ranges that are masked in all spectra.
+        :param tellurics_spectra: Dictionary containing the tellurics spectra.
+        :param match_tellurics_by: Name of the column used to match tellurics to spectra.
+        """
         self.sort_by = sort_by
         self.plot = plot
         self.wave_range = wave_range
@@ -163,6 +177,11 @@ class IterativeCC(object):
     def _prepare_spectrum(self, filename, mode=None, remove_tellurics=True, tellurics=None):
 
         fs = FitsSpectrum(filename, 'r')
+
+        if np.isnan(fs.spectrum.wave).any():
+            log.warning('NaNs in wavelength array found. Interpolating ...')
+            fs.spectrum = SpectrumFitsHDU(spec=fs.spectrum, wave=replace_wave_nans(fs.spectrum.wave))
+            # fs.spectrum.wave = replace_wave_nans(fs.spectrum.wave)
 
         if remove_tellurics:
             if tellurics is not None:
