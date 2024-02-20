@@ -184,9 +184,11 @@ def run(spectra, csv, grid, mask_tellurics=False, mask_ao=False, masking=None, f
             results['V'] = [best['vrad'], best['vrad_err']] if np.isfinite(best['vrad_err']) else best['vrad']
             results = fs.results('CROSSCORREL')
             results['VRAD'] = [best['vrad'], best['vrad_err']] if np.isfinite(best['vrad_err']) else best['vrad']
-            results['FWHM'] = best['fwhm']
-            results['PEAK'] = best['peak']
-            results['RCC'] = best['r_cc']
+            if np.isfinite(best['fwhm']):
+                results['FWHM'] = best['fwhm']
+            if np.isfinite(best['peak']):
+                results['PEAK'] = best['peak']
+                results['RCC'] = best['r_cc']
 
             vrad = best['vrad']
         else:
