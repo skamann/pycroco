@@ -1,9 +1,0 @@
-Metadata-Version: 2.1
-Name: pycroco
-Version: 0.2
-Summary: Python tool for cross-correlating spectra
-Home-page: 
-Author: Sebastian Kamann
-Author-email: s.kamann@ljmu.ac.uk
-License: gpl-3.0
-License-File: LICENSE.txt
