@@ -348,6 +348,10 @@ class CrossCorrel(object):
             # select pixels in search window
             search_pixels = (x_cc > (search_center - search_width)) & (x_cc < (search_center + search_width))
 
+        if not search_pixels.any():
+            raise IOError('No pixels is search window for peak fit ({:.3g} < x_cc < {:.3g}, search_center={:.3g}, search_width={:.3g})'.format(
+                x_cc.min(), x_cc.max(), search_center, search_width))
+
         if fit_width is None:
             fit_width = (x_cc[search_pixels].max() - x_cc[search_pixels].min()) / 2.
 
@@ -489,7 +493,7 @@ class CrossCorrel(object):
             is returned.
         cc_inputs : dictionary
             Only if the parameter full_output is set to True, a dictionary
-            containing a tuple per template_spectrum pair with the spectra
+            containing a tuple per template-spectrum pair with the spectra
             as they entered the correlation is returned.
         """
         if kwargs:

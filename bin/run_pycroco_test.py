@@ -3,13 +3,14 @@ import numpy as np
 from importlib.resources import files
 from spexxy.data import SpectrumFits
 
-from PyCroCo.crosscorrel import CrossCorrel
-from PyCroCo.peak_functions import Moffat
-from PyCroCo.data import testing
+from pycroco.crosscorrel import CrossCorrel
+from pycroco.peak_functions import Moffat
+from pycroco.data import testing
 
 cc = CrossCorrel()
 
-spec_file = files(testing).joinpath('muse.fits')
+# spec_file = files(testing).joinpath('muse.fits')
+spec_file = '/Users/ariskama/work/flames_ymcs/analysis/NGC1850_spectra/NGC1850-E04_STARID=23.fits'
 print("Path to test spectrum: {}".format(spec_file))
 
 spec = SpectrumFits(spec_file)
@@ -19,13 +20,14 @@ spec.valid[(spec.wave > 7580) & (spec.wave < 7700)] = True
 cc.add(spectrum=spec, id=1, template=False)
 # spec.flux[(spec.wave > 7580) & (spec.wave < 7700)] = 0 # np.nan
 
-temp_file = files(testing).joinpath('phoenix.fits')
+# temp_file = files(testing).joinpath('phoenix.fits')
+temp_file = '/Users/ariskama/work/flames_ymcs/analysis/test.fits'
 print("Path to test template: {}".format(temp_file))
 
 temp = SpectrumFits(temp_file)
 cc.add(spectrum=temp, id=2, template=True)
 
-results, ccfunc = cc(fftfilter=True, fit_width=50, full_output=True, fit_function=CrossCorrel.FitFunction.Moffat)
+results, ccfunc, ccinput = cc(filtertype=CrossCorrel.Filter.Gauss, fit_width=50, full_output=True, fit_function=CrossCorrel.FitFunction.Moffat)
 print(results)
 
 fig, ax = plt.subplots()
