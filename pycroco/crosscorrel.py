@@ -14,6 +14,9 @@ from .filters import ramp
 from .peak_functions import *
 
 
+CCData = collections.namedtuple('CCData', ['spectrum', 'template', 'signal'], defaults=[None])
+
+
 class CrossCorrel(object):
     """
     The class measures the radial velocities in a set of spectra by cross-
@@ -28,9 +31,9 @@ class CrossCorrel(object):
 
     @unique
     class FitFunction(Enum):
-        Gauss = 0
-        Moffat = 1
-        DoubleGauss = 2
+        Gauss = Gauss
+        Moffat = Moffat
+        # DoubleGauss = DoubleGauss
 
     @unique
     class Filter(Enum):
@@ -58,8 +61,7 @@ class CrossCorrel(object):
                                     index=pd.MultiIndex(levels=[[], []], codes=[[], []],
                                                         names=['template_id', 'spectrum_id']))
 
-        self.cc_functions = {}
-        self.cc_inputs = {}
+        self.cc_data = {}
         self.cc_template = None
         self.cc_spectrum = None
 
@@ -368,14 +370,11 @@ class CrossCorrel(object):
         if x2 < (0.2*np.diff(x_cc[center_pixels]).min())**2:
             x2 = (0.2*np.diff(x_cc[center_pixels]).min())**2
 
-        if function == CrossCorrel.FitFunction.Gauss:
-            fct = Gauss
-        elif function == CrossCorrel.FitFunction.Moffat:
-            fct = Moffat
+        if isinstance(function, CrossCorrel.FitFunction):
+            fct = function.value
         else:
-            raise IOError(f'Unknown fitting function: {function}.')
+            raise IOError(f'Unknown fitting function: {function}. See CrossCorrel.FitFunction for valid options.')
 
-#         guesses = fct.initials(y_cc[center_pixels].max(), x, x2)
         guesses = fct.initials(y_cc[center_pixels].max(), x_cc[center_pixels][y_cc[center_pixels].argmax()], x2)
 
         with warnings.catch_warnings():
@@ -486,15 +485,18 @@ class CrossCorrel(object):
             * r_cc - The r_cc statistics as defined by Tonry & Davis (1979)
             * success - Boolean flag indicating if the cross-correlation peak
                         has been detected.
-        cc_functions : dictionary
+        cc_data : dictionary
             Only if the parameter full_output is set to True, a dictionary
-            containing a pandas Series per template_spectrum pair with the
-            cross-correlation signal (and the velocity of each pixel as Index)
-            is returned.
-        cc_inputs : dictionary
-            Only if the parameter full_output is set to True, a dictionary
-            containing a tuple per template-spectrum pair with the spectra
-            as they entered the correlation is returned.
+            containing an instance of collections.namedtuple for every
+            spectrum-template pair with the following fields:
+            * spectrum - a pandas.Series objects containing the spectrum as
+                         it was used in the cross correlation (i.e. with all
+                         pre-processing steps applied). The index of the
+                         Series contains the wavelength of each pixel.
+            * template - same as above, but for the template.
+            * signal - a pandas.Series object containing the cross-correlation
+                       signal. The index of the Series contains the velocity
+                       of each pixel
         """
         if kwargs:
             raise IOError('Unknown parameters provided to call function: {}'.format(kwargs))
@@ -599,10 +601,10 @@ class CrossCorrel(object):
                                              offset=spectrum.wave_start - template.wave_start, velocity=True)
 
                 if full_output:
-                    self.cc_functions[(template_id, spectrum_id)] = corr
-                    self.cc_inputs[(template_id, spectrum_id)] = (
-                        pd.Series(final_template_flux, index=template.wave),
-                        pd.Series(final_spectrum_flux, index=spectrum.wave))
+                    self.cc_data[(template_id, spectrum_id)] = CCData(
+                        spectrum=pd.Series(final_spectrum_flux, index=spectrum.wave),
+                        template=pd.Series(final_template_flux, index=template.wave),
+                        signal=corr)
 
                 if fit_peak:
                     # get maximum by fitting max. peak within search window with a Gaussian
@@ -637,9 +639,9 @@ class CrossCorrel(object):
                         self.logger.error("... correlation failed: No valid {} fit.".format(fit_function))
 
         if full_output:
-            return self.results, self.cc_functions, self.cc_inputs
+            return self.results, self.cc_data
         else:
-            return self.results, None, None
+            return self.results, None
 
     def clean_spectra(self):
         """
@@ -660,7 +662,7 @@ class CrossCorrel(object):
         saved).
         """
         self.results = pd.DataFrame(columns=self.results.columns, index=self.results.index)
-        self.cc_functions = {}
+        self.cc_data = {}
 
     def save_results(self, filename):
         """

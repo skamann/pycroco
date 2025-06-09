@@ -1,4 +1,4 @@
-# PyCROCO
+# PyCroCo
 
 PyCroCo is a Python toolkit for cross-correlation analysis of astrophysical spectra. It provides utilities for preprocessing, cross-correlation computation, and visualization of spectral data.
 
@@ -24,13 +24,19 @@ pip install -e .
 ```python
 from pycroco.crosscorrel import CrossCorrel
 from spexxy.data import FitsSpectrum
+
 # Example: cross-correlate two spectra
 cc = CrossCorrel()
-_spec = FitsSpectrum('spectrum.fits')
-cc.add_spectrum(_spec.spectrum)
-_temp = FitsSpectrum('template.fits')
-cc.add_spectrum(_temp.spectrum, template=True)
+spec = FitsSpectrum('spectrum.fits')
+cc.add_spectrum(spec.spectrum, id=5)
+# providing IDs is optional, but helps when scanning the results
+temp = FitsSpectrum('template.fits')
+cc.add_spectrum(temp.spectrum, template=True, id=9)
 result = cc()
+
+# To visualise the results, the plot_cc_data() function can be used
+result, cc_data = cc(full_output=True)
+plot_cc_data(cc_data[(9, 5)], v=result.at[(9, 5), 'vrad'], verr=result.at[(9, 5), 'vrad_err'])
 ```
 
 ## Documentation
@@ -43,4 +49,4 @@ Contributions are welcome! Please open issues or submit pull requests.
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the GPL 3.0 License.

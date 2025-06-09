@@ -13,7 +13,7 @@ class Gauss(object):
         return peak, x, np.max([x2, 2.])
 
     @staticmethod
-    def profile(x, peak, x0, var, continuum=0):
+    def profile(x, peak, x0, var, continuum=0, **kwargs):
         """
         Define a 1dim. Gaussian profile with peak intensity peak, position x0,
         and standard deviation sigma. A continuum level may also be provided.
@@ -36,6 +36,8 @@ class Gauss(object):
         y : nd_array
             The values of the Gaussian profile for the provided pixels 'x'.
         """
+        if kwargs:
+            raise IOError("Unknown parameter(s) provided: {}".format(kwargs))
         return continuum + peak*np.exp(-0.5*((x - x0)**2/var))
 
     @staticmethod
@@ -63,7 +65,7 @@ class Moffat(object):
         return peak, x, np.sqrt(max(2., x2)), 2.5
 
     @staticmethod
-    def profile(x, peak, x0, r0, beta=2.5, continuum=0):
+    def profile(x, peak, x0, r0, beta=2.5, continuum=0, **kwargs):
         """
         Define a 1dim. Moffat profile with peak flux peak, position x0, and
         effective radius r0. A continuum level and/or the kurtosis beta may
@@ -89,6 +91,9 @@ class Moffat(object):
         y : nd_array
             The values of the Moffat profile for the provided pixels 'x'.
         """
+        if kwargs:
+            raise IOError("Unknown parameter(s) provided: {}".format(kwargs))
+        
         return continuum + peak*(1. + ((x - x0)/r0)**2)**(-beta)
 
     @staticmethod
