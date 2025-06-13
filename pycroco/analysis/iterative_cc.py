@@ -113,11 +113,12 @@ class ProgressPlot(object):
 
 class IterativeCC(object):
 
-    def __init__(self, spectra: pd.DataFrame, sort_by: str = 'SNRATIO', plot: bool = False, fig: plt.Figure = None,
-                 wave_range: tuple = None, mask_ranges: list = None, tellurics_spectra: dict = None,
-                 match_tellurics_by: str = 'MJD-OBS'):
+    def __init__(self, spectra: pd.DataFrame, identifier: str = 'Filename', sort_by: str = 'SNRATIO',
+                 plot: bool = False, fig: plt.Figure = None, wave_range: tuple = None, mask_ranges: list = None,
+                 tellurics_spectra: dict = None, match_tellurics_by: str = 'MJD-OBS'):
         """
         :param spectra: Pandas DataFrame containing information about the spectra.
+        :param identifier: Name of the column in the DataFrame that contains the filenames of the spectra.
         :param sort_by: Quality indicator in the DataFrame used to sort the spectra.
         :param plot: Boolean to indicate if the progress of the analysis is plotted.
         :param wave_range: Wavelength range that is analysed.
@@ -125,6 +126,7 @@ class IterativeCC(object):
         :param tellurics_spectra: Dictionary containing the tellurics spectra.
         :param match_tellurics_by: Name of the column used to match tellurics to spectra.
         """
+        self.identifier = identifier
         self.sort_by = sort_by
         self.plot = plot
         self.wave_range = wave_range
@@ -152,7 +154,7 @@ class IterativeCC(object):
                 tellurics = self.tellurics_spectra[spectra.at[index, self.match_tellurics_by]]
             else:
                 tellurics = None
-            self._data[index] = self._prepare_spectrum(row['Filename'], tellurics=tellurics)
+            self._data[index] = self._prepare_spectrum(row[identifier], tellurics=tellurics)
             self.cc.add(self._data[index], id=index)
             if self.sort_by is None:
                 spectra.at[index, 'snr'] = der_snr(self._data[index].flux)
@@ -167,7 +169,7 @@ class IterativeCC(object):
             tellurics = self.tellurics_spectra[self.spectra.at[self.template_id, self.match_tellurics_by]]
         else:
             tellurics = None
-        self.template = self._prepare_spectrum(self.spectra.at[self.template_id, 'Filename'], tellurics=tellurics,
+        self.template = self._prepare_spectrum(self.spectra.at[self.template_id, identifier], tellurics=tellurics,
                                                mode=PyCrocoSpectrum.Mode.LOG10LAMBDA)
         self.template_variance = None
 
@@ -309,7 +311,7 @@ class IterativeCC(object):
                 self.progress_plot.fig.savefig(plotfilename)
 
         final = current_results.droplevel(level=0)
-        for column in ['Filename', self.match_tellurics_by, self.sort_by]:
+        for column in [self.identifier, self.match_tellurics_by, self.sort_by]:
             final[column] = self.spectra[column]
         return final
 
